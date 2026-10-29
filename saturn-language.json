@@ -1,0 +1,39 @@
+{
+  "id": "php",
+  "name": "PHP",
+  "version": "0.1.0",
+  "description": "PHP language support: syntax highlighting and Phpactor language server.",
+  "badge": "PHP",
+  "saturnApi": "^0.3",
+  "main": "module.js",
+  "activationEvents": ["workspaceContains:**/{*.php,composer.json}", "onLanguage:php"],
+  "requires": [
+    { "name": "PHP", "command": "php", "args": ["--version"], "install": "Install PHP 8.1 or newer from https://www.php.net/downloads (macOS: brew install php)." }
+  ],
+  "contributes": {
+    "languages": [
+      { "id": "php", "name": "PHP", "extensions": [".php", ".phtml", ".php3", ".php4", ".php5", ".php7", ".php8", ".phps", ".inc"], "grammar": "grammars/php.tmLanguage.json", "scopeName": "text.html.php", "versions": true }
+    ],
+    "languageServer": {
+      "languages": ["php"],
+      "command": "node",
+      "args": ["server/launch.js", "${setting:serverPath}"],
+      "features": ["completion", "diagnostics", "hover", "definition", "symbols", "references", "rename", "signatureHelp"]
+    },
+    "settings": [
+      { "id": "serverPath", "label": "Language server", "type": "file", "default": "", "description": "Path to phpactor.phar or a phpactor executable. Leave empty to download and manage Phpactor automatically." }
+    ],
+    "commands": [
+      { "id": "php.installServer", "title": "PHP: Install/Update Language Server" },
+      { "id": "php.composerInstall", "title": "PHP: Composer Install" }
+    ],
+    "fileTemplates": [
+      { "id": "php.file", "label": "PHP File", "kind": "file", "extension": ".php", "placeholder": "index" },
+      { "id": "php.class", "label": "PHP Class", "kind": "file", "extension": ".php", "placeholder": "MyClass" },
+      { "id": "php.interface", "label": "PHP Interface", "kind": "file", "extension": ".php", "placeholder": "MyInterface" },
+      { "id": "php.trait", "label": "PHP Trait", "kind": "file", "extension": ".php", "placeholder": "MyTrait" },
+      { "id": "php.enum", "label": "PHP Enum", "kind": "file", "extension": ".php", "placeholder": "MyEnum" }
+    ],
+    "runConfigurations": true
+  }
+}
