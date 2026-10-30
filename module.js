@@ -1,4 +1,5 @@
-import { basename } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { basename, isAbsolute, join } from 'node:path';
 import { installPhpactor } from './server/phpactor.js';
 import { listPhpVersions, phpInFolder, saveChoice } from './server/versions.js';
 
@@ -44,6 +45,26 @@ export function activate(saturn) {
     });
   }
 
+  saturn.languages.registerDocComment('php', (ctx) => docComment(ctx.text, ctx.line));
+
+  saturn.languages.onDidRenameSymbol(async (event) => {
+    if (event.languageId !== 'php' || basename(event.path) !== `${event.oldName}.php`) return;
+    const file = isAbsolute(event.path) ? event.path : join(event.projectPath, event.path);
+    let text;
+    try {
+      text = await readFile(file, 'utf8');
+    } catch {
+      return;
+    }
+    const types = [...stripPhpNoise(text).matchAll(/^\s*(?:(?:abstract|final|readonly)\s+)*(class|interface|trait|enum)\s+([A-Za-z_]\w*)/gm)];
+    if (types.length !== 1 || types[0][2] !== event.newName) return;
+    try {
+      await saturn.workspace.renameFile(event.projectPath, event.path, `${event.newName}.php`);
+    } catch (error) {
+      saturn.window.showMessage(`Could not rename ${basename(event.path)}: ${error.message}`, { kind: 'error', projectPath: event.projectPath });
+    }
+  });
+
   saturn.run.registerProvider(async (ctx) => {
     const entries = [];
     const chosen = await saturn.languages.getVersion(ctx.projectPath, 'php');
@@ -74,6 +95,83 @@ function phpFileName(ctx) {
 function typeName(ctx) {
   const name = basename(ctx?.name ?? 'MyClass').replace(/\.php$/i, '');
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : 'MyClass';
+}
+
+function stripPhpNoise(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(?:\/\/|#(?!\[)).*$/gm, '')
+    .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g, "''");
+}
+
+function docComment(text, line) {
+  const lines = text.split(/\r?\n/);
+  let i = line + 1;
+  while (i < lines.length && (/^\s*$/.test(lines[i]) || /^\s*#\[/.test(lines[i]))) i++;
+  if (i >= lines.length) return null;
+  const header = lines.slice(i, i + 20).join('\n').replace(/#\[[^\]]*\]/g, '').trim();
+
+  if (/^(?:(?:abstract|final|readonly)\s+)*(?:class|interface|trait|enum)\b/.test(header)) {
+    return '/**\n * $1\n */';
+  }
+
+  const fn = header.match(/^(?:(?:public|protected|private|static|abstract|final)\s+)*function\s*&?\s*([A-Za-z_]\w*)\s*\(/);
+  if (fn) {
+    const open = fn[0].length - 1;
+    const close = matchingParen(header, open);
+    if (close < 0) return null;
+    const tags = splitTopLevel(header.slice(open + 1, close)).map(paramTag).filter(Boolean);
+    const returnType = header.slice(close + 1).match(/^\s*:\s*([^{;]+?)\s*(?:[{;]|$)/)?.[1];
+    if (fn[1].toLowerCase() !== '__construct') tags.push(`@return ${returnType ?? 'mixed'}`);
+    return ['/**', ' * $1', ...(tags.length ? [' *', ...tags.map((t) => ` * ${t}`)] : []), ' */'].join('\n');
+  }
+
+  const prop = header.match(/^(?:(?:public|protected|private|static|readonly|var)\s+)+(?:([?\w\\|&()]+)\s+)?\$\w+/);
+  if (prop) {
+    return prop[1] ? `/**\n * $1\n *\n * @var ${prop[1]}\n */` : '/**\n * $1\n */';
+  }
+  return null;
+}
+
+function matchingParen(text, open) {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'" || c === '"') {
+      i++;
+      while (i < text.length && text[i] !== c) i += text[i] === '\\' ? 2 : 1;
+    } else if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+function splitTopLevel(text) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "'" || c === '"') {
+      i++;
+      while (i < text.length && text[i] !== c) i += text[i] === '\\' ? 2 : 1;
+    } else if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) depth--;
+    else if (c === ',' && depth === 0) {
+      parts.push(text.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts.map((p) => p.trim()).filter(Boolean);
+}
+
+function paramTag(param) {
+  const m = param
+    .replace(/^(?:(?:public|protected|private|readonly)\s+)+/, '')
+    .match(/^(?:([?\w\\|&()]+)\s+)?&?\s*(\.\.\.)?\s*\$(\w+)/);
+  if (!m) return null;
+  return `@param ${m[1] ?? 'mixed'} ${m[2] ?? ''}\\$${m[3]}`;
 }
 
 function quote(path) {
