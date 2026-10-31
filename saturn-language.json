@@ -1,21 +1,19 @@
 {
   "id": "php",
   "name": "PHP",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "PHP language support: syntax highlighting and Phpactor language server.",
   "badge": "PHP",
-  "saturnApi": "^0.4",
+  "saturnApi": "^1.0",
   "main": "module.js",
-  "activationEvents": ["workspaceContains:**/{*.php,composer.json}", "onLanguage:php"],
   "requires": [
     { "name": "PHP", "command": "php", "args": ["--version"], "install": "Install PHP 8.1 or newer from https://www.php.net/downloads (macOS: brew install php)." }
   ],
   "contributes": {
     "languages": [
-      { "id": "php", "name": "PHP", "extensions": [".php", ".phtml", ".php3", ".php4", ".php5", ".php7", ".php8", ".phps", ".inc"], "grammar": "grammars/php.tmLanguage.json", "scopeName": "text.html.php", "versions": true, "docCommentTriggers": ["/**"] }
+      { "id": "php", "name": "PHP", "extensions": [".php", ".phtml", ".php3", ".php4", ".php5", ".php7", ".php8", ".phps", ".inc"], "grammar": "grammars/php.tmLanguage.json", "versions": true, "docCommentTriggers": ["/**"] }
     ],
     "languageServer": {
-      "languages": ["php"],
       "command": "node",
       "args": ["server/launch.js", "${setting:serverPath}"],
       "features": ["completion", "diagnostics", "hover", "definition", "symbols", "references", "rename", "signatureHelp", "inlayHints"]
